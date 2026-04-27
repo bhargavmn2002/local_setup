@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/dashboardFragment">
+
+    <fragment
+        android:id="@+id/dashboardFragment"
+        android:name="com.signox.offlinemanager.ui.dashboard.DashboardFragment"
+        android:label="@string/dashboard_title"
+        tools:layout="@layout/fragment_dashboard">
+        
+        <action
+            android:id="@+id/action_dashboard_to_media"
+            app:destination="@id/mediaFragment" />
+            
+        <action
+            android:id="@+id/action_dashboard_to_playlists"
+            app:destination="@id/playlistFragment" />
+            
+        <action
+            android:id="@+id/action_dashboard_to_layouts"
+            app:destination="@id/layoutFragment" />
+            
+        <action
+            android:id="@+id/action_dashboard_to_schedules"
+            app:destination="@id/scheduleFragment" />
+            
+        <action
+            android:id="@+id/action_dashboard_to_player"
+            app:destination="@id/playerFragment" />
+            
+    </fragment>
+
+    <fragment
+        android:id="@+id/mediaFragment"
+        android:name="com.signox.offlinemanager.ui.media.MediaFragment"
+        android:label="@string/media_library"
+        tools:layout="@layout/fragment_media" />
+
+    <fragment
+        android:id="@+id/playlistFragment"
+        android:name="com.signox.offlinemanager.ui.playlist.PlaylistFragment"
+        android:label="@string/playlists"
+        tools:layout="@layout/fragment_playlist" />
+
+    <fragment
+        android:id="@+id/layoutFragment"
+        android:name="com.signox.offlinemanager.ui.layout.LayoutFragment"
+        android:label="@string/layouts"
+        tools:layout="@layout/fragment_layout" />
+
+    <fragment
+        android:id="@+id/scheduleFragment"
+        android:name="com.signox.offlinemanager.ui.schedule.ScheduleFragment"
+        android:label="@string/schedules"
+        tools:layout="@layout/fragment_schedule" />
+
+    <fragment
+        android:id="@+id/playerFragment"
+        android:name="com.signox.offlinemanager.ui.player.PlayerFragment"
+        android:label="@string/play_content"
+        tools:layout="@layout/fragment_player" />
+
+</navigation>

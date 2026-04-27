@@ -1,0 +1,34 @@
+ <widget xmlns="http://www.w3.org/ns/widgets"
+xmlns:tizen="http://tizen.org/ns/widgets"
+id="http://tizen.org/appwidget"
+version="1.0.0">
+
+<tizen:application id="AbCd1234eF.signoxplayer"
+package="AbCd1234eF"
+required_version="6.0"/>
+
+<content src="index.html"/>
+
+<name>SignoX Player</name>
+<description>Signox Digital Signage Player</description>
+
+<tizen:privilege name="http://tizen.org/privilege/internet"/>
+<tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+<tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
+<tizen:privilege name="http://tizen.org/privilege/power"/>
+<tizen:privilege name="http://tizen.org/privilege/system"/>
+<tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+
+<tizen:setting screen-orientation="landscape"
+background-support="enable"
+context-menu="disable"
+hwkey-event="enable"
+fullscreen="true"
+launch-mode="single"
+launch-on-boot="true"
+auto-restart="true"
+install-location="auto"/>
+
+<tizen:content-security-policy>default-src * data: blob: filesystem: ws: wss:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; media-src * data: blob:;</tizen:content-security-policy>
+
+</widget>

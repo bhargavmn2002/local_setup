@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Connection Test</title>
+</head>
+<body>
+    <h1>Backend Connection Test</h1>
+    
+    <button onclick="testConnection()">Test Backend Connection</button>
+    <div id="result"></div>
+    
+    <script>
+        async function testConnection() {
+            const result = document.getElementById('result');
+            const apiUrl = 'http://192.168.0.104:5000/api';
+            
+            result.innerHTML = '<p>Testing connection...</p>';
+            
+            try {
+                // Test 1: Health check
+                console.log('Testing health endpoint...');
+                const healthResponse = await fetch(`${apiUrl}/health`);
+                console.log('Health response:', healthResponse.status);
+                
+                // Test 2: Login endpoint (should fail but show CORS is working)
+                console.log('Testing login endpoint...');
+                const loginResponse = await fetch(`${apiUrl}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'test@test.com',
+                        password: 'wrongpassword'
+                    })
+                });
+                console.log('Login response:', loginResponse.status);
+                
+                result.innerHTML = `
+                    <div style="color: green;">
+                        <h3>✅ Connection Successful!</h3>
+                        <p>Health Check: ${healthResponse.status} ${healthResponse.statusText}</p>
+                        <p>Login Endpoint: ${loginResponse.status} ${loginResponse.statusText}</p>
+                        <p>Backend URL: ${apiUrl}</p>
+                        <p>CORS is working properly!</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                result.innerHTML = `
+                    <div style="color: red;">
+                        <h3>❌ Connection Failed!</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Backend URL: ${apiUrl}</p>
+                        <p>Check if:</p>
+                        <ul>
+                            <li>Backend server is running on port 5000</li>
+                            <li>CORS is configured correctly</li>
+                            <li>Network connectivity is working</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+        
+        // Auto-run test
+        window.onload = () => {
+            setTimeout(testConnection, 1000);
+        };
+    </script>
+</body>
+</html>

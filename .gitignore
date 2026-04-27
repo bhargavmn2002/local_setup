@@ -1,0 +1,70 @@
+# Node
+node_modules/
+.next/
+build/
+dist/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+*.log
+logs/
+signox_backend/logs/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Android/Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# SSL Certificates (don't commit real certs)
+ssl/
+*.pem
+*.key
+*.crt
+
+# Database
+*.db
+*.sqlite
+
+# Uploads and media
+public/uploads/
+uploads/
+
+# Cache
+.cache/
+*.tsbuildinfo
+
+# Test files (temporary)
+test-*.js
+sssp-test/
+nginx-mime-config.conf
+
+# Backup files
+backups/
+*.backup
+
+# Package manager
+
+yarn.lock
+pnpm-lock.yaml

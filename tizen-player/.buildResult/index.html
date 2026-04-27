@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SignoX Player - Phase 8</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0;">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen active">
+        <div class="screen-content">
+            <img src="signox_logo.png" alt="SignoX" class="logo-image">
+            <div class="spinner"></div>
+            <p>Phase 8: Offline Caching</p>
+            <p id="loading-status">Initializing...</p>
+        </div>
+    </div>
+
+    <!-- Pairing Screen -->
+    <div id="pairing-screen" class="screen">
+        <div class="screen-content">
+            <img src="signox_logo.png" alt="SignoX Player" class="logo-image">
+            <h2>Device Pairing</h2>
+            <p>Enter this code in your dashboard:</p>
+            <div class="pairing-code" id="pairing-code">------</div>
+            <div class="pairing-status" id="pairing-status">Generating code...</div>
+            <div class="device-info">
+                <p>Device ID: <span id="device-id">Loading...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Screen -->
+    <div id="error-screen" class="screen">
+        <div class="screen-content">
+            <img src="signox_logo.png" alt="SignoX" class="logo-image">
+            <h2>Connection Error</h2>
+            <p class="error-message" id="error-message">Unable to connect to server</p>
+            <p>Retrying...</p>
+        </div>
+    </div>
+
+    <!-- Standby Screen -->
+    <div id="standby-screen" class="screen">
+        <div class="screen-content">
+            <img src="signox_logo.png" alt="SignoX" class="logo-image">
+            <h2>✅ Device Paired!</h2>
+            <p>No content assigned yet</p>
+            <p>Please assign content in the dashboard</p>
+            <div class="device-info">
+                <p>Device ID: <span id="standby-device-id">-</span></p>
+                <p>Status: <span style="color: #00ff88;">Online</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Player -->
+    <div id="playlist-player" class="player">
+        <img id="playlist-image" alt="Content">
+        <video id="playlist-video" preload="auto"></video>
+    </div>
+
+    <!-- Layout Player -->
+    <div id="layout-player" class="player" style="position: relative; margin: 0 auto;">
+    </div>
+
+    <!-- Debug Overlay for Cache Status - HIDDEN BY DEFAULT -->
+    <div id="debug-overlay" style="position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); color: #0f0; padding: 15px; font-family: monospace; font-size: 14px; z-index: 9999; border-radius: 5px; max-width: 500px; display: none;">
+        <div style="color: #0ff; font-weight: bold; margin-bottom: 10px;">📊 CACHE STATUS</div>
+        <div id="debug-playback">Playback: Idle</div>
+        <div id="debug-cache-status">Cache: Initializing...</div>
+        <div id="debug-download-queue">Queue: 0 pending</div>
+        <div id="debug-cache-size">Size: 0 MB / 1024 MB</div>
+        <div id="debug-network">Network: Checking...</div>
+        <div id="debug-progress" style="margin-top: 5px; color: #fa0;">Progress: None</div>
+        <div id="debug-current-media" style="margin-top: 10px; color: #ff0;">Current: None</div>
+        <div style="margin-top: 10px;">
+            <button onclick="clearCacheAndRestart()" style="background: #f44; color: white; border: none; padding: 5px 10px; margin-right: 5px; border-radius: 3px; cursor: pointer;">Clear Cache</button>
+            <button onclick="triggerDownloads()" style="background: #4f4; color: black; border: none; padding: 5px 10px; margin-right: 5px; border-radius: 3px; cursor: pointer;">Force Download</button>
+            <button onclick="toggleLogs()" style="background: #44f; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Toggle Logs</button>
+        </div>
+    </div>
+
+    <!-- On-Screen Log Display - HIDDEN BY DEFAULT -->
+    <div id="log-display" style="position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.9); color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; z-index: 9998; border-radius: 5px; max-width: 600px; max-height: 80vh; overflow-y: auto; display: none;">
+        <div style="color: #0ff; font-weight: bold; margin-bottom: 10px;">📋 LIVE LOGS</div>
+        <div id="log-content"></div>
+    </div>
+
+
+    <script>
+        // Debug overlay functions
+        function updateDebugOverlay() {
+            const overlay = document.getElementById('debug-overlay');
+            if (!overlay) return;
+            
+            // Show overlay - DISABLED FOR PRODUCTION
+            // overlay.style.display = 'block';
+            
+            // Update cache status
+            if (typeof CacheService !== 'undefined' && CacheService.db) {
+                CacheService.getStats().then(stats => {
+                    const sizeMB = Math.round(stats.totalSize / 1024 / 1024);
+                    const maxMB = Math.round(stats.maxSize / 1024 / 1024);
+                    const percent = Math.round(stats.usagePercentage);
+                    
+                    document.getElementById('debug-cache-status').innerHTML = 
+                        `Cache: ${stats.totalFiles} files (${stats.imageCount} img, ${stats.videoCount} vid)`;
+                    document.getElementById('debug-cache-size').innerHTML = 
+                        `Size: ${sizeMB} MB / ${maxMB} MB (${percent}%)`;
+                });
+            }
+            
+            // Update download queue
+            if (typeof DownloadService !== 'undefined') {
+                const status = DownloadService.getStatus();
+                document.getElementById('debug-download-queue').innerHTML = 
+                    `Queue: ${status.queueLength} pending, ${status.activeDownloads} downloading`;
+                
+                // Show active download progress
+                let progressText = 'Progress: None';
+                if (DownloadService.activeDownloads && DownloadService.activeDownloads.size > 0) {
+                    const activeDownloads = [];
+                    for (const [url, item] of DownloadService.activeDownloads.entries()) {
+                        const fileName = url.split('/').pop();
+                        const progress = DownloadService.getProgress(url);
+                        const downloadedMB = item.downloadedBytes ? Math.round(item.downloadedBytes / 1024 / 1024 * 100) / 100 : 0;
+                        const totalMB = item.totalBytes ? Math.round(item.totalBytes / 1024 / 1024 * 100) / 100 : 0;
+                        activeDownloads.push(`${fileName}: ${progress}% (${downloadedMB}/${totalMB}MB)`);
+                    }
+                    progressText = `Progress: ${activeDownloads.join(', ')}`;
+                }
+                document.getElementById('debug-progress').innerHTML = progressText;
+            }
+            
+            // Update network status
+            if (typeof ConnectionMonitor !== 'undefined') {
+                const online = ConnectionMonitor.isOnline();
+                document.getElementById('debug-network').innerHTML = 
+                    `Network: ${online ? '✅ Online' : '❌ Offline'}`;
+            }
+        }
+        
+        function updateCurrentMedia(mediaName, isCached) {
+            const elem = document.getElementById('debug-current-media');
+            if (elem) {
+                const cacheIcon = isCached ? '💾' : '🌐';
+                const cacheText = isCached ? 'CACHED' : 'STREAMING';
+                elem.innerHTML = `Current: ${cacheIcon} ${mediaName} (${cacheText})`;
+            }
+            
+            // Update playback status
+            const playbackElem = document.getElementById('debug-playback');
+            if (playbackElem) {
+                playbackElem.innerHTML = `Playback: Playing ${mediaName}`;
+            }
+        }
+        
+        // Clear cache and restart
+        async function clearCacheAndRestart() {
+            Logger.info('DEBUG', '🗑️ Clearing cache and restarting...');
+            
+            if (typeof CacheService !== 'undefined') {
+                await CacheService.clearCache();
+                Logger.info('DEBUG', '✅ Cache cleared');
+            }
+            
+            if (typeof DownloadService !== 'undefined') {
+                DownloadService.clearQueue();
+                Logger.info('DEBUG', '✅ Download queue cleared');
+            }
+            
+            // Restart config polling to trigger new downloads
+            if (typeof ConfigService !== 'undefined') {
+                ConfigService.fetchConfig();
+                Logger.info('DEBUG', '✅ Config refresh triggered');
+            }
+        }
+        
+        // Force download current content
+        async function triggerDownloads() {
+            Logger.info('DEBUG', '🚀 Forcing downloads...');
+            
+            const cachedConfig = Storage.get(STORAGE_KEYS.CACHED_CONFIG);
+            if (cachedConfig && typeof DownloadService !== 'undefined') {
+                if (cachedConfig.layout) {
+                    Logger.info('DEBUG', '📦 Forcing layout download...');
+                    await DownloadService.downloadLayout(cachedConfig.layout);
+                } else if (cachedConfig.playlist) {
+                    Logger.info('DEBUG', '📦 Forcing playlist download...');
+                    await DownloadService.downloadPlaylist(cachedConfig.playlist);
+                }
+                Logger.info('DEBUG', '✅ Force download completed');
+            } else {
+                Logger.warn('DEBUG', '❌ No cached config or DownloadService unavailable');
+            }
+        }
+        
+        // Debug cache contents
+        async function debugCache() {
+            Logger.info('DEBUG', '🔍 CACHE DEBUG - Checking all cached content...');
+            
+            if (typeof CacheService !== 'undefined' && CacheService.db) {
+                try {
+                    const allMedia = await CacheService.getAllMetadata();
+                    Logger.info('DEBUG', `📦 Found ${allMedia.length} cached items:`);
+                    
+                    allMedia.forEach((media, index) => {
+                        const sizeMB = Math.round(media.fileSize / 1024 / 1024 * 100) / 100;
+                        const fileName = media.url.split('/').pop();
+                        Logger.info('DEBUG', `  ${index + 1}. URL: ${media.url}`);
+                        Logger.info('DEBUG', `      File: ${fileName}`);
+                        Logger.info('DEBUG', `      Size: ${sizeMB}MB`);
+                        Logger.info('DEBUG', `      Type: ${media.type}`);
+                        Logger.info('DEBUG', `      Blob URL: ${media.blobUrl ? 'EXISTS' : 'MISSING'}`);
+                        Logger.info('DEBUG', `      Downloaded: ${new Date(media.downloadedAt).toLocaleString()}`);
+                        Logger.info('DEBUG', `      Last Used: ${new Date(media.lastUsed).toLocaleString()}`);
+                    });
+                    
+                    const stats = await CacheService.getStats();
+                    Logger.info('DEBUG', `📊 Cache Stats: ${stats.totalFiles} files, ${Math.round(stats.totalSize / 1024 / 1024)}MB used`);
+                } catch (error) {
+                    Logger.error('DEBUG', 'Error debugging cache:', error);
+                }
+            } else {
+                Logger.error('DEBUG', '❌ CacheService not available');
+            }
+        }
+        
+        // Call debugCache every 15 seconds when offline
+        setInterval(() => {
+            if (typeof ConnectionMonitor !== 'undefined' && !ConnectionMonitor.isOnline()) {
+                debugCache();
+            }
+        }, 15000);
+        
+        // Toggle log display
+        function toggleLogs() {
+            const logDisplay = document.getElementById('log-display');
+            if (logDisplay) {
+                if (logDisplay.style.display === 'none') {
+                    logDisplay.style.display = 'block';
+                    Logger.info('DEBUG', '📋 On-screen logs enabled');
+                } else {
+                    logDisplay.style.display = 'none';
+                    Logger.info('DEBUG', '📋 On-screen logs disabled');
+                }
+            }
+        }
+        
+        // Auto-show logs after 5 seconds - DISABLED FOR PRODUCTION
+        // setTimeout(() => {
+        //     const logDisplay = document.getElementById('log-display');
+        //     if (logDisplay) {
+        //         logDisplay.style.display = 'block';
+        //         Logger.info('DEBUG', '📋 On-screen logs auto-enabled');
+        //     }
+        // }, 5000);
+        
+        // Update overlay every 2 seconds - DISABLED FOR PRODUCTION
+        // setInterval(updateDebugOverlay, 2000);
+        
+        // Add comprehensive logging every 10 seconds - PERSISTENT LOGS
+        let logCounter = 0;
+        const logInterval = setInterval(() => {
+            try {
+                logCounter++;
+                const timestamp = new Date().toLocaleTimeString();
+                
+                Logger.info('DEBUG', `=== STATUS REPORT #${logCounter} (${timestamp}) ===`);
+                
+                // Cache Service Status
+                if (typeof CacheService !== 'undefined' && CacheService.db) {
+                    CacheService.getStats().then(stats => {
+                        Logger.info('DEBUG', `📦 CACHE: ${stats.totalFiles} files (${stats.imageCount} img, ${stats.videoCount} vid)`);
+                        Logger.info('DEBUG', `📦 SIZE: ${CacheService.formatBytes(stats.totalSize)} / ${CacheService.formatBytes(stats.maxSize)}`);
+                        Logger.info('DEBUG', `📦 USAGE: ${Math.round(stats.usagePercentage)}%`);
+                    }).catch(err => {
+                        Logger.error('DEBUG', 'Error getting cache stats:', err);
+                    });
+                    
+                    // Log all cached media
+                    CacheService.getAllMetadata().then(allMedia => {
+                        Logger.info('DEBUG', `📦 CACHED MEDIA (${allMedia.length} items):`);
+                        allMedia.forEach((media, index) => {
+                            const sizeMB = Math.round(media.fileSize / 1024 / 1024 * 100) / 100;
+                            const fileName = media.url.split('/').pop();
+                            const lastUsed = new Date(media.lastUsed).toLocaleTimeString();
+                            Logger.info('DEBUG', `  ${index + 1}. ${fileName} (${sizeMB}MB, ${media.type}, used: ${lastUsed})`);
+                        });
+                    }).catch(err => {
+                        Logger.error('DEBUG', 'Error getting cached media:', err);
+                    });
+                } else {
+                    Logger.warn('DEBUG', '📦 CACHE: Service not initialized');
+                }
+                
+                // Download Service Status
+                if (typeof DownloadService !== 'undefined') {
+                    try {
+                        const status = DownloadService.getStatus();
+                        Logger.info('DEBUG', `⬇️ DOWNLOADS: ${status.queueLength} queued, ${status.activeDownloads} active`);
+                        Logger.info('DEBUG', `⬇️ PROCESSING: ${status.isProcessing ? 'YES' : 'NO'}`);
+                        Logger.info('DEBUG', `⬇️ TASKS: ${status.totalTasks} total, ${status.pending} pending, ${status.failed} failed`);
+                        
+                        // Log completed/failed tasks
+                        const allTasks = DownloadService.getAllTasks();
+                        const completedTasks = allTasks.filter(t => t.status === 'COMPLETED');
+                        const failedTasks = allTasks.filter(t => t.status === 'FAILED');
+                        
+                        if (completedTasks.length > 0) {
+                            Logger.info('DEBUG', `✅ COMPLETED (${completedTasks.length} items):`);
+                            completedTasks.forEach((task, index) => {
+                                const fileName = task.url.split('/').pop();
+                                const sizeMB = task.totalBytes ? Math.round(task.totalBytes / 1024 / 1024 * 100) / 100 : 0;
+                                const completedTime = task.completedAt ? new Date(task.completedAt).toLocaleTimeString() : 'Unknown';
+                                Logger.info('DEBUG', `  ${index + 1}. ${fileName} (${sizeMB}MB, completed: ${completedTime})`);
+                            });
+                        }
+                        
+                        if (failedTasks.length > 0) {
+                            Logger.info('DEBUG', `❌ FAILED (${failedTasks.length} items):`);
+                            failedTasks.forEach((task, index) => {
+                                const fileName = task.url.split('/').pop();
+                                Logger.info('DEBUG', `  ${index + 1}. ${fileName} - Error: ${task.error || 'Unknown'}`);
+                            });
+                        }
+                    } catch (err) {
+                        Logger.error('DEBUG', 'Error getting download status:', err);
+                    }
+                } else {
+                    Logger.warn('DEBUG', '⬇️ DOWNLOADS: Service not available');
+                }
+                
+                // Network Status
+                if (typeof ConnectionMonitor !== 'undefined') {
+                    try {
+                        const online = ConnectionMonitor.isOnline();
+                        Logger.info('DEBUG', `📡 NETWORK: ${online ? 'ONLINE ✅' : 'OFFLINE ❌'}`);
+                    } catch (err) {
+                        Logger.error('DEBUG', 'Error checking network:', err);
+                    }
+                } else {
+                    Logger.warn('DEBUG', '📡 NETWORK: Monitor not available');
+                }
+                
+                // Player Status
+                if (typeof LayoutPlayer !== 'undefined') {
+                    try {
+                        Logger.info('DEBUG', `🎬 LAYOUT PLAYER: ${LayoutPlayer.isPlaying ? 'PLAYING' : 'STOPPED'}`);
+                        if (LayoutPlayer.layout) {
+                            Logger.info('DEBUG', `🎬 CURRENT LAYOUT: ${LayoutPlayer.layout.name}`);
+                            Logger.info('DEBUG', `🎬 SECTIONS: ${LayoutPlayer.sections.length} active`);
+                        }
+                    } catch (err) {
+                        Logger.error('DEBUG', 'Error getting layout player status:', err);
+                    }
+                }
+                
+                Logger.info('DEBUG', `=== END REPORT #${logCounter} ===`);
+                Logger.info('DEBUG', ''); // Empty line for separation
+                
+            } catch (error) {
+                Logger.error('DEBUG', `Error in status report #${logCounter}:`, error);
+            }
+        }, 10000);
+        
+        // Log that the interval was started
+        Logger.info('DEBUG', '🚀 10-second status logging started');
+    </script>
+
+    <script>
+        // Force fullscreen immediately
+        (function() {
+            document.documentElement.style.cssText = 'margin:0;padding:0;width:100%;height:100%;overflow:hidden;';
+            document.body.style.cssText = 'margin:0;padding:0;width:100%;height:100%;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0;';
+        })();
+    </script>
+    
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils/logger.js"></script>
+    <script src="js/utils/storage.js"></script>
+    <script src="js/utils/connection-monitor.js"></script>
+    <script src="js/services/api.js"></script>
+    <script src="js/services/cache.service.js"></script>
+    <script src="js/services/download.service.js"></script>
+    <script src="js/services/offline-media-loader.js"></script>
+    <script src="js/services/config-service.js"></script>
+    <script src="js/services/heartbeat.service.js"></script>
+    <script src="js/services/kiosk.service.js"></script>
+    <script src="js/players/playlist-player.js"></script>
+    <script src="js/players/layout-player.js"></script>
+    
+    <script>
+        // Simple Screen Manager
+        const ScreenManager = {
+            show(screenId, data = {}) {
+                Logger.info('Screen', `Showing: ${screenId}`);
+                
+                // Hide all screens
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                
+                // Show requested screen
+                const screen = document.getElementById(screenId);
+                if (screen) {
+                    screen.classList.add('active');
+                    this.updateScreen(screenId, data);
+                }
+            },
+            
+            updateScreen(screenId, data) {
+                if (screenId === 'pairing-screen') {
+                    if (data.pairingCode) {
+                        document.getElementById('pairing-code').textContent = data.pairingCode;
+                    }
+                    if (data.status) {
+                        document.getElementById('pairing-status').textContent = data.status;
+                    }
+                    const deviceId = Storage.get(STORAGE_KEYS.DEVICE_ID);
+                    if (deviceId) {
+                        document.getElementById('device-id').textContent = deviceId.substring(0, 20) + '...';
+                    }
+                } else if (screenId === 'error-screen') {
+                    if (data.message) {
+                        document.getElementById('error-message').textContent = data.message;
+                    }
+                } else if (screenId === 'standby-screen') {
+                    const deviceId = Storage.get(STORAGE_KEYS.DEVICE_ID);
+                    if (deviceId) {
+                        document.getElementById('standby-device-id').textContent = deviceId.substring(0, 20) + '...';
+                    }
+                }
+            }
+        };
+
+        // App Initialization
+        async function init() {
+            Logger.info('App', '🚀 SignoX Player - Phase 8 starting');
+            
+            // Initialize connection monitor
+            ConnectionMonitor.start();
+            
+            // Initialize cache service
+            await CacheService.init();
+            
+            // Initialize download service
+            DownloadService.init();
+            
+            // Initialize players
+            PlaylistPlayer.init();
+            LayoutPlayer.init();
+            
+            // Enable kiosk mode immediately (always active)
+            KioskService.enable();
+            
+            // Setup config service callbacks
+            ConfigService.onStateChange = (state, data) => {
+                Logger.info('App', `Config state: ${state}`);
+                
+                switch (state) {
+                    case 'checking':
+                        document.getElementById('loading-status').textContent = 'Checking pairing status...';
+                        break;
+                    
+                    case 'pairing':
+                        ScreenManager.show('pairing-screen', {
+                            pairingCode: data,
+                            status: 'Waiting for pairing...'
+                        });
+                        break;
+                    
+                    case 'paired':
+                        Logger.info('App', '✅ Device is paired!');
+                        
+                        // Try to load cached config immediately
+                        const cachedConfig = Storage.get(STORAGE_KEYS.CACHED_CONFIG);
+                        if (cachedConfig) {
+                            Logger.info('App', '📦 Loading cached config while fetching latest');
+                            handleConfigUpdate(cachedConfig);
+                        } else {
+                            ScreenManager.show('standby-screen');
+                        }
+                        
+                        // Start heartbeat service when paired
+                        HeartbeatService.start();
+                        break;
+                    
+                    case 'config-updated':
+                        handleConfigUpdate(data);
+                        break;
+                    
+                    case 'error':
+                        ScreenManager.show('error-screen', { message: data });
+                        setTimeout(() => ConfigService.startPairingFlow(), 5000);
+                        break;
+                }
+            };
+            
+            // Show loading
+            document.getElementById('loading-status').textContent = 'Connecting to server...';
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Start pairing flow
+            await ConfigService.startPairingFlow();
+            
+            Logger.info('App', '✅ Phase 8 complete - Offline caching enabled');
+        }
+
+        // Handle config updates
+        let lastConfigHash = null;
+        
+        function handleConfigUpdate(config) {
+            try {
+                Logger.info('App', 'Config updated');
+                
+                // Create a hash of the config to detect actual changes
+                const configHash = JSON.stringify({
+                    playlistId: config.playlist?.id,
+                    layoutId: config.layout?.id,
+                    itemCount: config.playlist?.items?.length || 0,
+                    sectionCount: config.layout?.sections?.length || 0
+                });
+                
+                // Only restart if config actually changed
+                if (configHash === lastConfigHash) {
+                    return;
+                }
+                
+                lastConfigHash = configHash;
+                
+                // Stop current playback
+                PlaylistPlayer.stop();
+                LayoutPlayer.stop();
+                
+                // Check for layout first (priority over playlist)
+                if (config.layout && config.layout.sections && config.layout.sections.length > 0) {
+                    Logger.info('App', `Playing layout: ${config.layout.name}`);
+                    
+                    ScreenManager.show('layout-player');
+                    LayoutPlayer.play(config.layout);
+                }
+                // Check for playlist
+                else if (config.playlist && config.playlist.items && config.playlist.items.length > 0) {
+                    Logger.info('App', `Playing playlist: ${config.playlist.name}`);
+                    
+                    ScreenManager.show('playlist-player');
+                    PlaylistPlayer.play(config.playlist);
+                } else {
+                    Logger.info('App', 'No content assigned - showing standby');
+                    ScreenManager.show('standby-screen');
+                }
+            } catch (error) {
+                Logger.error('App', 'Error handling config update:', error);
+                ScreenManager.show('standby-screen');
+            }
+        }
+
+        // Show player screen
+        ScreenManager.show = function(screenId, data = {}) {
+            Logger.info('Screen', `Showing: ${screenId}`);
+            
+            // Hide all screens and players
+            document.querySelectorAll('.screen, .player').forEach(s => s.classList.remove('active'));
+            
+            // Show requested screen/player
+            const element = document.getElementById(screenId);
+            if (element) {
+                element.classList.add('active');
+                this.updateScreen(screenId, data);
+            }
+        };
+
+        // Start app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>

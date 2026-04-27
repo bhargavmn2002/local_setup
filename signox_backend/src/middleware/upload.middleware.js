@@ -1,0 +1,72 @@
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { isS3MediaEnabled } = require('../services/s3-media.service');
+
+const useS3Media = isS3MediaEnabled();
+
+// Local disk: public folder for static access
+const uploadsDir = path.join(__dirname, '../../public/uploads');
+if (!useS3Media && !fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const storage = useS3Media
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination: (req, file, cb) => {
+        cb(null, uploadsDir);
+      },
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+      },
+    });
+
+const fileFilter = (req, file, cb) => {
+  const allowedMimes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+    'video/x-msvideo',
+  ];
+
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExts = [
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.mp4',
+    '.webm',
+    '.mov',
+    '.avi',
+  ];
+
+  const extOk = allowedExts.includes(ext);
+  const mimeOk = allowedMimes.includes(file.mimetype);
+
+  if (mimeOk && extOk) {
+    return cb(null, true);
+  }
+  const supportedFormats =
+    'JPEG, PNG, GIF, WebP images and MP4, WebM, MOV, AVI videos';
+  cb(
+    new Error(
+      `Only ${supportedFormats} are allowed! Received: ${file.mimetype} (${ext})`
+    )
+  );
+};
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 600 * 1024 * 1024 },
+  fileFilter,
+});
+
+module.exports = upload;
